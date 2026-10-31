@@ -114,6 +114,7 @@
     <button class="tab" data-page="pGaines">📐 Gaines de ventilation</button>
     <button class="tab" data-page="pCta">🔥 Batterie CTA</button>
     <button class="tab" data-page="pDep">🌡️ Déperditions pièce</button>
+    <button class="tab" data-page="pHygro">💧 Hygrométrie</button>
   </nav>
 
   <!-- ================================================= -->
@@ -389,6 +390,53 @@
       </p>
     </div>
   </div>
+  </section>
+
+
+  <!-- ================================================= -->
+  <!-- PAGE 5 : HYGROMÉTRIE -->
+  <!-- ================================================= -->
+  <section class="page" id="pHygro">
+    <div class="grid">
+      <div class="card">
+        <h2>Paramètres d'entrée</h2>
+        <label>Température sèche (°C)</label>
+        <input type="number" id="hyT" value="20" step="0.1">
+
+        <label>Humidité relative (%)</label>
+        <input type="number" id="hyHR" value="50" min="0" max="100" step="1">
+
+        <label>Pression atmosphérique (kPa)</label>
+        <input type="number" id="hyP" value="101.325" min="50" max="110" step="0.1">
+        <div class="hint">101.325 kPa au niveau de la mer ; ~90 kPa à 1000 m ; ~84 kPa à 1500 m</div>
+
+        <div class="err" id="errHygro"></div>
+      </div>
+
+      <div class="card">
+        <h2>Résultats</h2>
+        <div class="kpis">
+          <div class="kpi"><div class="v" id="kPvs">—</div><div class="l">Pression saturante (kPa)</div></div>
+          <div class="kpi"><div class="v" id="kPv">—</div><div class="l">Pression partielle vapeur (kPa)</div></div>
+          <div class="kpi"><div class="v" id="kX">—</div><div class="l">Humidité absolue (g/kg air sec)</div></div>
+          <div class="kpi hl"><div class="v" id="kRos">—</div><div class="l">Point de rosée (°C)</div></div>
+          <div class="kpi hl"><div class="v" id="kH">—</div><div class="l">Enthalpie (kJ/kg air sec)</div></div>
+          <div class="kpi"><div class="v" id="kVM">—</div><div class="l">Volume massique (m³/kg air sec)</div></div>
+        </div>
+
+        <div class="verdict" id="verdictHygro">—</div>
+
+        <p class="legend">
+          <b>Formules</b> : p<sub>vs</sub> par corrélation Magnus-type (sur glace < 0 °C, sur eau ≥ 0 °C) ;
+          x = 0.622·p<sub>v</sub>/(p − p<sub>v</sub>) ; h = 1.006·t + x·(2501 + 1.86·t) ;
+          point de rosée par inversion de Magnus ; v<sub>sp</sub> = R·(t+273.15)·(1+1.6078·x)/p.
+          <br>
+          <b>Confort</b> : HR 40–60 % recommandée en occupation ; &lt; 30 % air sec (gêne, électricité statique),
+          &gt; 70 % risque de condensation et développement de moisissures. Une paroi dont la température
+          de surface passe sous le point de rosée provoque de la condensation superficielle.
+        </p>
+      </div>
+    </div>
   </section>
 
 </div>
@@ -717,6 +765,79 @@ function computeDep(){
 });
 
 computeDep();
+
+/* ================================================= */
+/* PAGE 5 : HYGROMÉTRIE */
+/* ================================================= */
+const MAGNUS_EAU  = {a:17.625, b:243.04};
+const MAGNUS_GLACE = {a:22.587, b:273.86};
+
+function pSat(t){
+  const c = t >= 0 ? MAGNUS_EAU : MAGNUS_GLACE;
+  return 0.6112 * Math.exp(c.a * t / (c.b + t));
+}
+
+function rosee(pv){
+  const ln = Math.log(pv / 0.6112);
+  const c = (pv / 0.6112) >= 1 ? MAGNUS_EAU : MAGNUS_GLACE;
+  return c.b * ln / (c.a - ln);
+}
+
+function computeHygro(){
+  const err = $("errHygro");
+  err.style.display = "none";
+
+  const t  = parseFloat($("hyT").value);
+  const hr = parseFloat($("hyHR").value);
+  const p  = parseFloat($("hyP").value);
+
+  if (isNaN(t) || isNaN(hr) || isNaN(p) || hr < 0 || hr > 100 || p <= 0) {
+    err.textContent = "Saisir une température, une HR entre 0 et 100 % et une pression positive.";
+    err.style.display = "block";
+    return;
+  }
+
+  const pvs = pSat(t);
+  const pv  = pvs * hr / 100;
+  const x   = 0.622 * pv / (p - pv);
+  const tr  = rosee(pv);
+  const h   = 1.006 * t + x * (2501 + 1.86 * t);
+  const vsp = 0.287042 * (t + 273.15) * (1 + 1.6078 * x) / p;
+
+  $("kPvs").textContent = pvs.toFixed(3);
+  $("kPv").textContent  = pv.toFixed(3);
+  $("kX").textContent   = (x * 1000).toFixed(2);
+  $("kRos").textContent  = tr.toFixed(1);
+  $("kH").textContent    = h.toFixed(2);
+  $("kVM").textContent   = vsp.toFixed(3);
+
+  const vd = $("verdictHygro");
+  let cls, txt;
+  if (hr >= 40 && hr <= 60) {
+    cls = "ok";
+    txt = `✔ HR ${hr.toFixed(0)} % — zone de confort recommandée (40–60 %)`;
+  } else if (hr < 40) {
+    cls = hr < 30 ? "bad" : "warn";
+    txt = hr < 30
+      ? `✘ HR ${hr.toFixed(0)} % — air très sec : gêne respiratoire, électricité statique ; envisager un humidificateur`
+      : `⚠ HR ${hr.toFixed(0)} % — air plutôt sec, en limite basse du confort`;
+  } else if (hr <= 70) {
+    cls = "warn";
+    txt = `⚠ HR ${hr.toFixed(0)} % — humidité élevée : surveiller la condensation sur les parois froides (point de rosée ${tr.toFixed(1)} °C)`;
+  } else {
+    cls = "bad";
+    txt = `✘ HR ${hr.toFixed(0)} % — risque fort de condensation et de moisissures (point de rosée ${tr.toFixed(1)} °C)`;
+  }
+  vd.className = "verdict show " + cls;
+  vd.textContent = txt;
+}
+
+["hyT","hyHR","hyP"].forEach(id=>{
+  $(id).addEventListener("input", computeHygro);
+  $(id).addEventListener("change", computeHygro);
+});
+
+computeHygro();
 
 </script>
 </body>

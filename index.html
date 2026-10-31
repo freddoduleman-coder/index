@@ -20,6 +20,28 @@
   h1{font-size:1.5rem; margin-bottom:.25rem;}
   .sub{color:var(--muted); font-size:.9rem; margin-bottom:1.25rem;}
 
+  /* ============ SOUS-ONGLET DÉPERDITIONS ============ */
+  .subtabs{display:flex; gap:.5rem; margin-bottom:1rem; flex-wrap:wrap;}
+  .subtab{
+    background:var(--card); color:var(--muted);
+    border:1px solid #475569; border-radius:10px;
+    padding:.5rem .9rem; cursor:pointer; font-size:.85rem; font-weight:600; font-family:inherit;
+    transition:background .15s, color .15s, border-color .15s;
+  }
+  .subtab:hover{color:var(--txt);}
+  .subtab.active{background:var(--card2); color:var(--accent); border-color:var(--accent);}
+  .subpage{display:none;}
+  .subpage.active{display:block;}
+  .btn-secondary{background:var(--card2); color:var(--accent); border:1px solid var(--accent);}
+  .btn-secondary:hover{filter:brightness(1.15);}
+  .btn-small{width:auto; padding:.35rem .7rem; font-size:.78rem; margin-top:0; border-radius:8px;}
+  .btn-danger{background:var(--card2); color:var(--bad); border:1px solid var(--bad);}
+  .btn-danger:hover{filter:brightness(1.15);}
+  input[type=text]{
+    width:100%; padding:.55rem .7rem; border-radius:8px; border:1px solid #475569;
+    background:var(--card2); color:var(--txt); font-size:1rem;
+  }
+
   /* ============ NAVIGATION ============ */
   .tabs{
     display:flex; gap:.5rem; margin-bottom:1.25rem; flex-wrap:wrap;
@@ -291,10 +313,32 @@
   </section>
 
   <section class="page" id="pDep">
-<div class="grid">
+
+  <!-- ============ SOUS-ONGLET : PIÈCE ============ -->
+  <div class="subtabs" id="depSubtabs">
+    <button class="subtab active" data-sub="depPiece">➕ Ajouter / modifier une pièce</button>
+    <button class="subtab" data-sub="depSynthese">📊 Cumul toutes pièces</button>
+  </div>
+
+  <!-- ============ SOUS-PAGE : SAISIE PIÈCE ============ -->
+  <div class="subpage active" id="depPiece">
+  <div class="grid">
     <!-- ============ ENTRÉES ============ -->
     <div class="card">
       <h2>Paramètres d'entrée</h2>
+
+      <div class="sep-title">Pièce</div>
+      <div class="row3">
+        <div>
+          <label>N° de pièce</label>
+          <input type="number" id="pieceNum" value="1" min="1" step="1">
+        </div>
+        <div>
+          <label>Nom de la pièce</label>
+          <input type="text" id="pieceNom" placeholder="Ex : Séjour" maxlength="40">
+        </div>
+      </div>
+      <div class="hint">Chaque pièce est identifiée par son numéro ; resaisir un numéro existant modifie la pièce.</div>
 
       <div class="sep-title">Températures</div>
       <label>Température intérieure (°C)</label>
@@ -356,6 +400,7 @@
       <input type="number" id="qAer" value="45" min="0" step="1">
       <div class="hint">Règle simple : 1 à 1,5 volume/h, ou ~30 m³/h par personne. Une pièce de 50 m³ avec 1 vol/h ≈ 50 m³/h. Mettre 0 pour ignorer.</div>
 
+      <button onclick="ajouterPiece()">➕ Ajouter au cumul</button>
       <div class="err" id="errDep"></div>
     </div>
 
@@ -390,6 +435,44 @@
       </p>
     </div>
   </div>
+  </div>
+
+  <!-- ============ SOUS-PAGE : CUMUL / SYNTHÈSE ============ -->
+  <div class="subpage" id="depSynthese">
+    <div class="card">
+      <h2>Cumul des déperditions — toutes pièces</h2>
+      <div class="kpis">
+        <div class="kpi hl"><div class="v" id="cNb">—</div><div class="l">Pièces enregistrées</div></div>
+        <div class="kpi hl"><div class="v" id="cTotal">—</div><div class="l">Déperditions totales (W)</div></div>
+        <div class="kpi"><div class="v" id="cTotalKw">—</div><div class="l">Puissance chauffage (kW)</div></div>
+        <div class="kpi"><div class="v" id="cTrans">—</div><div class="l">Total transmission (W)</div></div>
+        <div class="kpi"><div class="v" id="cVent">—</div><div class="l">Total ventilation (W)</div></div>
+        <div class="kpi"><div class="v" id="cSurf">—</div><div class="l">Surface chauffée (m²)</div></div>
+        <div class="kpi"><div class="v" id="cRatio">—</div><div class="l">Ratio global (W/m²)</div></div>
+        <div class="kpi"><div class="v" id="cDT">—</div><div class="l">ΔT de base (K)</div></div>
+      </div>
+
+      <table class="dep-table">
+        <thead>
+          <tr><th>N°</th><th>Pièce</th><th>Transmission</th><th>Ventilation</th><th>Total</th><th>Surface</th><th>W/m²</th><th>Part</th><th></th></tr>
+        </thead>
+        <tbody id="cumulBody"></tbody>
+      </table>
+
+      <div class="verdict" id="verdictCumul">—</div>
+
+      <button id="btnExport" class="btn-secondary">Exporter le tableau en CSV</button>
+
+      <p class="legend">
+        <b>Cumul</b> : chaque pièce ajoutée depuis l'onglet de saisie est listée ici avec ses déperditions par
+        transmission et par ventilation, sa surface (plancher bas) et son ratio W/m².<br>
+        Le total sert au dimensionnement de la source de chaleur (générateur, pompe à chaleur) pour l'ensemble
+        des pièces saisies, par température extérieure de base.<br>
+        Ordres de grandeur ratio global : &lt; 50 W/m² bâtiment très isolé · 50–80 W/m² correct · &gt; 100 W/m² isolation faible.
+      </p>
+    </div>
+  </div>
+
   </section>
 
 
@@ -670,6 +753,8 @@ function calculerPuissance(){
 /* PAGE 4 : DÉPERDITIONS PIÈCE */
 /* ================================================= */
 
+const pieces = [];
+
 function computeDep(){
   const err = $("errDep");
   err.style.display = "none";
@@ -755,16 +840,159 @@ function computeDep(){
   } else {
     cls="ok"; txt = `Puissance à installer : ${total.toFixed(0)} W (${(total/1000).toFixed(2)} kW)`;
   }
-  vd.className = "verdict " + cls;
+
+  const num = parseInt($("pieceNum").value, 10);
+  const existe = pieces.find(p => p.num === num);
+  if(existe){
+    txt += ` · Pièce n° ${num} déjà enregistrée : « Ajouter au cumul » la mettra à jour`;
+  }
+  vd.className = "verdict show " + cls;
   vd.textContent = txt;
 }
 
-["tInt","tExt","murS","murU","solS","solU","toitS","toitU","fenS","fenU","qAer"].forEach(id=>{
+function ajouterPiece(){
+  const err = $("errDep");
+  err.style.display = "none";
+
+  const num = parseInt($("pieceNum").value, 10);
+  if(!isFinite(num) || num < 1){
+    err.textContent = "Saisissez un numéro de pièce (≥ 1).";
+    err.style.display = "block";
+    return;
+  }
+
+  computeDep();
+  if(err.style.display === "block"){ return; }
+
+  const tInt = parseFloat($("tInt").value);
+  const tExt = parseFloat($("tExt").value);
+  const qAer = parseFloat($("qAer").value) || 0;
+  const dT = tInt - tExt;
+
+  let trans = 0;
+  for(const id of ["murS","solS","toitS","fenS"]){
+    const sid = id.replace("S","U");
+    const S = parseFloat($(id).value) || 0;
+    const U = parseFloat($(sid).value) || 0;
+    if(S > 0 && U > 0) trans += U * S * dT;
+  }
+  const vent = 0.34 * qAer * dT;
+  const total = trans + vent;
+  const surf = Math.max(parseFloat($("solS").value) || 0, parseFloat($("toitS").value) || 0);
+
+  const piece = {
+    num,
+    nom: $("pieceNom").value.trim() || `Pièce ${num}`,
+    trans, vent, total, surf,
+    tInt, tExt, qAer,
+    murS: parseFloat($("murS").value)||0, murU: parseFloat($("murU").value)||0,
+    solS: parseFloat($("solS").value)||0, solU: parseFloat($("solU").value)||0,
+    toitS: parseFloat($("toitS").value)||0, toitU: parseFloat($("toitU").value)||0,
+    fenS: parseFloat($("fenS").value)||0, fenU: parseFloat($("fenU").value)||0,
+  };
+
+  const i = pieces.findIndex(p => p.num === num);
+  if(i >= 0){ pieces[i] = piece; }
+  else { pieces.push(piece); pieces.sort((a,b)=>a.num-b.num); }
+
+  renderCumul();
+  showSubPage("depSynthese");
+}
+
+function supprimerPiece(num){
+  const i = pieces.findIndex(p => p.num === num);
+  if(i >= 0){ pieces.splice(i,1); renderCumul(); }
+}
+
+function renderCumul(){
+  $("cNb").textContent = pieces.length || "—";
+
+  if(pieces.length === 0){
+    ["cTotal","cTotalKw","cTrans","cVent","cSurf","cRatio","cDT"].forEach(id=>$(id).textContent="—");
+    $("cumulBody").innerHTML = "";
+    const vd = $("verdictCumul");
+    vd.className = "verdict";
+    vd.textContent = "Aucune pièce enregistrée : ajoutez des pièces depuis l'onglet de saisie.";
+    return;
+  }
+
+  const trans = pieces.reduce((s,p)=>s+p.trans, 0);
+  const vent  = pieces.reduce((s,p)=>s+p.vent, 0);
+  const total = trans + vent;
+  const surf  = pieces.reduce((s,p)=>s+p.surf, 0);
+  const dT = pieces[0].tInt - pieces[0].tExt;
+
+  $("cTotal").textContent   = total.toFixed(0);
+  $("cTotalKw").textContent = (total/1000).toFixed(2);
+  $("cTrans").textContent   = trans.toFixed(0);
+  $("cVent").textContent    = vent.toFixed(0);
+  $("cSurf").textContent    = surf > 0 ? surf.toFixed(1) : "—";
+  $("cRatio").textContent   = surf > 0 ? (total/surf).toFixed(1) : "—";
+  $("cDT").textContent      = dT.toFixed(1);
+
+  let html = "";
+  for(const p of pieces){
+    const part = total > 0 ? (p.total/total*100) : 0;
+    const r = p.surf > 0 ? (p.total/p.surf).toFixed(1) : "—";
+    html += `<tr><th>${p.num}</th><td>${p.nom}</td><td class="num">${p.trans.toFixed(0)} W</td><td class="num">${p.vent.toFixed(0)} W</td><td class="num">${p.total.toFixed(0)} W</td><td class="num">${p.surf > 0 ? p.surf.toFixed(1)+" m²" : "—"}</td><td class="num">${r}</td><td class="num">${part.toFixed(0)}%</td><td><button class="btn-small btn-danger" data-del="${p.num}">✕</button></td></tr>`;
+  }
+  $("cumulBody").innerHTML = html;
+
+  $("cumulBody").querySelectorAll("[data-del]").forEach(b=>{
+    b.addEventListener("click", ()=>supprimerPiece(parseInt(b.dataset.del,10)));
+  });
+
+  const vd = $("verdictCumul");
+  let cls, txt;
+  if(surf > 0){
+    const rg = total/surf;
+    if(rg < 50)      { cls="ok";  txt = `✔ ${rg.toFixed(1)} W/m² au global — bâtiment très bien isolé`; }
+    else if(rg <= 80){ cls="warn"; txt = `⚠ ${rg.toFixed(1)} W/m² au global — isolation correcte, dimensionnement standard`; }
+    else            { cls="bad"; txt = `✘ ${rg.toFixed(1)} W/m² au global — isolation faible : envisager d'améliorer l'isolation ou réduire les débits`; }
+  } else {
+    cls="ok"; txt = `Puissance totale à installer : ${total.toFixed(0)} W (${(total/1000).toFixed(2)} kW)`;
+  }
+  vd.className = "verdict show " + cls;
+  vd.textContent = txt;
+}
+
+function exportCSV(){
+  if(pieces.length === 0){ return; }
+  const esc = s => `"${String(s).replace(/"/g,'""')}"`;
+  let csv = "N°;Pièce;Transmission (W);Ventilation (W);Total (W);Surface (m²);W/m²;T int (°C);T ext (°C)\n";
+  for(const p of pieces){
+    const r = p.surf > 0 ? (p.total/p.surf).toFixed(1) : "";
+    csv += [p.num, esc(p.nom), p.trans.toFixed(0), p.vent.toFixed(0), p.total.toFixed(0), p.surf.toFixed(1), r, p.tInt, p.tExt].join(";") + "\n";
+  }
+  const trans = pieces.reduce((s,p)=>s+p.trans,0);
+  const vent = pieces.reduce((s,p)=>s+p.vent,0);
+  const surf = pieces.reduce((s,p)=>s+p.surf,0);
+  csv += ["", esc("TOTAL"), trans.toFixed(0), vent.toFixed(0), (trans+vent).toFixed(0), surf.toFixed(1), surf>0?((trans+vent)/surf).toFixed(1):"", "", ""].join(";") + "\n";
+  const blob = new Blob(["\ufeff" + csv], {type:"text/csv;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "deperditions-pieces.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function showSubPage(id){
+  document.querySelectorAll("#depSubtabs .subtab").forEach(t=>t.classList.toggle("active", t.dataset.sub===id));
+  document.querySelectorAll("#pDep .subpage").forEach(p=>p.classList.toggle("active", p.id===id));
+}
+
+document.querySelectorAll("#depSubtabs .subtab").forEach(t=>{
+  t.addEventListener("click", ()=>showSubPage(t.dataset.sub));
+});
+$("btnExport").addEventListener("click", exportCSV);
+
+["tInt","tExt","murS","murU","solS","solU","toitS","toitU","fenS","fenU","qAer","pieceNum","pieceNom"].forEach(id=>{
   $(id).addEventListener("input", computeDep);
   $(id).addEventListener("change", computeDep);
 });
 
 computeDep();
+renderCumul();
 
 /* ================================================= */
 /* PAGE 5 : HYGROMÉTRIE */

@@ -712,8 +712,8 @@ function computeDep(){
 }
 
 ["tInt","tExt","murS","murU","solS","solU","toitS","toitU","fenS","fenU","qAer"].forEach(id=>{
-  $(id).addEventListener("input", compute);
-  $(id).addEventListener("change", compute);
+  $(id).addEventListener("input", computeDep);
+  $(id).addEventListener("change", computeDep);
 });
 
 computeDep();

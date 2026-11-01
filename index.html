@@ -146,17 +146,17 @@
     <div class="grid">
       <div class="card">
         <h2>Paramètres d'entrée</h2>
-        <label>Débit d'air Q</label>
+        <label>Débit d'air Q (m³/h)</label>
         <input type="number" id="q" value="1000" min="1" step="10">
 
-        <label>Vitesse d'air v</label>
+        <label>Vitesse d'air v (m/s)</label>
         <input type="number" id="v" value="5" min="0.1" step="0.5">
         <div class="hint">Typique : 4–6 m/s (confort), 7–10 m/s (tertiaire)</div>
 
         <label>Forme de la gaine</label>
         <select id="shape">
           <option value="round">Circulaire</option>
-          <option value="rect">Rectangulaire (ratio 1:2 max)</option>
+          <option value="rect">Rectangulaire</option>
         </select>
 
         <div class="row" id="rectInputs" style="display:none">
@@ -217,7 +217,39 @@
         <label>Débit (m³/h)</label>
         <input type="number" id="debit" placeholder="Entrez le débit en m³/h" step="0.01">
 
-        <div class="row">
+        <label>Forme de la gaine</label>
+        <select id="forme">
+          <option value="circ">Circulaire (Ø normalisé)</option>
+          <option value="rect">Rectangulaire</option>
+        </select>
+
+        <div id="circInputs">
+          <label>Diamètre normalisé (mm)</label>
+          <select id="diamNorm">
+            <option value="80">80</option>
+            <option value="100">100</option>
+            <option value="125">125</option>
+            <option value="160">160</option>
+            <option value="200">200</option>
+            <option value="250">250</option>
+            <option value="315">315</option>
+            <option value="355">355</option>
+            <option value="400">400</option>
+            <option value="450">450</option>
+            <option value="500">500</option>
+            <option value="560">560</option>
+            <option value="630">630</option>
+            <option value="710">710</option>
+            <option value="800">800</option>
+            <option value="900">900</option>
+            <option value="1000">1000</option>
+            <option value="1120">1120</option>
+            <option value="1250">1250</option>
+          </select>
+          <div class="hint">Diamètres spiralés standards du commerce européen (EN 1506 / série Renard)</div>
+        </div>
+
+        <div class="row" id="rectInputsGaines" style="display:none">
           <div>
             <label>Hauteur (cm)</label>
             <input type="number" id="hauteur" placeholder="Hauteur" step="0.01">
@@ -243,21 +275,20 @@
       <div class="card">
         <h2>Résultats</h2>
         <div class="kpis">
-          <div class="kpi"><div class="v" id="resDiamEq">—</div><div class="l">Diamètre équivalent (cm)</div></div>
+          <div class="kpi"><div class="v" id="resDiam">—</div><div class="l">Diamètre retenu (cm)</div></div>
           <div class="kpi"><div class="v" id="resVitesse">—</div><div class="l">Vitesse d'air (m/s)</div></div>
           <div class="kpi"><div class="v" id="resPerte">—</div><div class="l">Perte de charge (Pa/m)</div></div>
-          <div class="kpi hl"><div class="v" id="resBruitRect">—</div><div class="l">Bruit gaine rectangulaire dB(A)</div></div>
-          <div class="kpi hl"><div class="v" id="resBruitCirc">—</div><div class="l">Bruit gaine circulaire dB(A)</div></div>
+          <div class="kpi hl"><div class="v" id="resBruit">—</div><div class="l">Bruit de régénération dB(A)</div></div>
         </div>
 
         <div class="verdict" id="verdictGaines">—</div>
 
         <p class="legend">
-          Ø équivalent = 1.3·(h·l)<sup>0.625</sup> / (h+l)<sup>0.25</sup> — méthode du diamètre équivalent.<br>
+          Gaine rectangulaire : Ø équivalent = 1.3·(h·l)<sup>0.625</sup> / (h+l)<sup>0.25</sup> — tout ratio h/l est accepté.<br>
+          Gaine circulaire : Ø normalisé du commerce (EN 1506 / série Renard : 80–1250 mm).<br>
           Perte de charge linéaire : Δp = λ·(1/D)·(ρ·v²/2) avec λ selon le matériau
           (galva 0.02, inox 0.018, PPS 0.022, souple canelé 0.025).<br>
-          Bruit : L<sub>W</sub> = 10·log(ρ·v³·A) + K — estimation pour gaine rectangulaire (section h·l)
-          et circulaire (section du Ø équivalent).
+          Bruit : L<sub>W</sub> = 10·log(ρ·v³·A) + K — estimation sur la section réelle de la gaine.
         </p>
       </div>
     </div>
@@ -638,24 +669,36 @@ function calculerGaines(){
   err.style.display = "none";
 
   const debit = parseFloat($("debit").value);
-  const hauteur = parseFloat($("hauteur").value);
-  const largeur = parseFloat($("largeur").value);
+  const forme = $("forme").value;
   const materiau = $("materiau").value;
 
-  if (isNaN(debit) || isNaN(hauteur) || isNaN(largeur) || debit <= 0 || hauteur <= 0 || largeur <= 0) {
-    err.textContent = "Veuillez entrer des valeurs valides et positives.";
-    err.style.display = "block";
-    return;
+  let section, diamHyd, diamLbl;
+
+  if(forme === "circ"){
+    const dMm = parseFloat($("diamNorm").value);
+    if (isNaN(debit) || debit <= 0 || isNaN(dMm) || dMm <= 0) {
+      err.textContent = "Veuillez entrer un débit positif et sélectionner un diamètre.";
+      err.style.display = "block";
+      return;
+    }
+    const d = dMm / 1000;
+    section = Math.PI * d * d / 4;
+    diamHyd = d;
+    diamLbl = (dMm.toFixed(0));
+  } else {
+    const hauteur = parseFloat($("hauteur").value);
+    const largeur = parseFloat($("largeur").value);
+    if (isNaN(debit) || isNaN(hauteur) || isNaN(largeur) || debit <= 0 || hauteur <= 0 || largeur <= 0) {
+      err.textContent = "Veuillez entrer des valeurs valides et positives.";
+      err.style.display = "block";
+      return;
+    }
+    const h = hauteur / 100;
+    const l = largeur / 100;
+    section = h * l;
+    diamHyd = 1.3 * Math.pow(h * l, 0.625) / Math.pow(h + l, 0.25);
+    diamLbl = (diamHyd * 100).toFixed(1);
   }
-
-  const h = hauteur / 100;
-  const l = largeur / 100;
-
-  const diametreEquivalent = 1.3 * Math.pow((h * l), 0.625) / Math.pow((h + l), 0.25) * 100;
-
-  const debitVolumique = debit / 3600;
-  const section = h * l;
-  const vitesse = debitVolumique / section;
 
   let lambda;
   switch (materiau) {
@@ -667,25 +710,20 @@ function calculerGaines(){
   }
 
   const rho = 1.2;
-  const perteCharge = lambda * (1 / (diametreEquivalent / 100)) * (rho * Math.pow(vitesse, 2) / 2);
+  const debitVolumique = debit / 3600;
+  const vitesse = debitVolumique / section;
+  const perteCharge = lambda * (1 / diamHyd) * (rho * Math.pow(vitesse, 2) / 2);
 
-  const A = section;
   const Kc = 10;
-  const LwRectangulaire = 10 * Math.log10(rho * Math.pow(vitesse, 3) * A) + Kc;
+  const Lw = 10 * Math.log10(rho * Math.pow(vitesse, 3) * section) + Kc;
 
-  const rayon = diametreEquivalent / 200;
-  const ACirculaire = Math.PI * Math.pow(rayon, 2);
-  const LwCirculaire = 10 * Math.log10(rho * Math.pow(vitesse, 3) * ACirculaire) + Kc;
-
-  $("resDiamEq").textContent = diametreEquivalent.toFixed(2);
+  $("resDiam").textContent = diamLbl;
   $("resVitesse").textContent = vitesse.toFixed(2);
   $("resPerte").textContent = perteCharge.toFixed(2);
-  $("resBruitRect").textContent = LwRectangulaire.toFixed(2);
-  $("resBruitCirc").textContent = LwCirculaire.toFixed(2);
+  $("resBruit").textContent = Lw.toFixed(2);
 
   const vd = $("verdictGaines");
   let cls, txt;
-  const bruitMax = Math.max(LwRectangulaire, LwCirculaire);
   if (perteCharge <= 3){
     cls = "ok"; txt = `✔ Perte de charge ${perteCharge.toFixed(2)} Pa/m — faible, installation économe`;
   } else if (perteCharge <= 6){
@@ -694,8 +732,18 @@ function calculerGaines(){
     cls = "bad"; txt = `✘ Perte de charge ${perteCharge.toFixed(2)} Pa/m — élevée : augmenter la section ou réduire la vitesse`;
   }
   vd.className = "verdict show " + cls;
-  vd.textContent = txt + ` · Bruit max estimé ${bruitMax.toFixed(1)} dB(A)`;
+  vd.textContent = txt + ` · Bruit estimé ${Lw.toFixed(1)} dB(A)`;
 }
+
+$("forme").addEventListener("change", function(){
+  const circ = this.value === "circ";
+  $("circInputs").style.display = circ ? "block" : "none";
+  $("rectInputsGaines").style.display = circ ? "none" : "grid";
+});
+["debit","diamNorm","hauteur","largeur","materiau","forme"].forEach(id=>{
+  $(id).addEventListener("input", calculerGaines);
+  $(id).addEventListener("change", calculerGaines);
+});
 
 /* ================================================= */
 /* PAGE 3 : BATTERIE CTA */
